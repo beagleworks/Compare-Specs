@@ -1,0 +1,143 @@
+openapi: 3.0.3
+info:
+  title: Denpyo Voucher API
+  version: 0.1.0
+paths:
+  /api/auth/password:
+    post:
+      summary: Set initial password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '204': { description: Password set }
+        '409': { description: Already set }
+  /api/auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '204': { description: Logged in }
+        '401': { description: Invalid or locked }
+  /api/auth/logout:
+    post:
+      summary: Logout
+      responses:
+        '204': { description: Logged out }
+  /api/vouchers:
+    get:
+      summary: List vouchers
+      parameters:
+        - in: query
+          name: date
+          schema: { type: string, format: date }
+        - in: query
+          name: q
+          schema: { type: string }
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VoucherSummary'
+    post:
+      summary: Create voucher
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherCreate'
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Voucher' } } } }
+        '400': { description: Validation error }
+  /api/vouchers/{id}:
+    get:
+      summary: Get voucher
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Voucher' } } } }
+        '404': { description: Not found }
+  /api/vouchers/{id}/pdf:
+    get:
+      summary: Get voucher PDF
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404': { description: Not found }
+components:
+  schemas:
+    VoucherCreate:
+      type: object
+      required: [date, summary, lines]
+      properties:
+        date: { type: string, format: date }
+        summary: { type: string, maxLength: 200 }
+        lines:
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/VoucherLineInput'
+    VoucherLineInput:
+      type: object
+      required: [side, account, amount]
+      properties:
+        side: { type: string, enum: [debit, credit] }
+        account: { type: string }
+        customAccount: { type: string }
+        amount: { type: number, minimum: 0.01 }
+    Voucher:
+      allOf:
+        - $ref: '#/components/schemas/VoucherCreate'
+        - type: object
+          required: [id, debitTotal, creditTotal, createdAt]
+          properties:
+            id: { type: string }
+            debitTotal: { type: number }
+            creditTotal: { type: number }
+            createdAt: { type: string, format: date-time }
+    VoucherSummary:
+      type: object
+      required: [id, date, summary, debitTotal, creditTotal]
+      properties:
+        id: { type: string }
+        date: { type: string, format: date }
+        summary: { type: string }
+        debitTotal: { type: number }
+        creditTotal: { type: number }

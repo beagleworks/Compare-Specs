@@ -1,0 +1,664 @@
+openapi: 3.0.3
+info:
+  title: 振替伝票作成API
+  description: 振替伝票の作成、管理、PDF出力を行うREST API
+  version: 1.0.0
+  contact:
+    name: 振替伝票アプリケーション
+servers:
+  - url: http://localhost:8000
+    description: Development server
+
+paths:
+  # 振替伝票関連
+  /api/denpyo:
+    get:
+      summary: 振替伝票一覧取得
+      description: 保存されている振替伝票の一覧を取得
+      parameters:
+        - name: page
+          in: query
+          description: ページ番号（1から開始）
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: 1ページあたりの件数
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: date_from
+          in: query
+          description: 日付範囲検索（開始日）
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          description: 日付範囲検索（終了日）
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 振替伝票一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FurikaeDenpyo'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: 振替伝票作成
+      description: 新しい振替伝票を作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDenpyoRequest'
+      responses:
+        '201':
+          description: 振替伝票が正常に作成された
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FurikaeDenpyo'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/denpyo/{id}:
+    get:
+      summary: 振替伝票詳細取得
+      description: 指定IDの振替伝票詳細を取得
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 振替伝票ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 振替伝票詳細
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FurikaeDenpyo'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: 振替伝票更新
+      description: 指定IDの振替伝票を更新
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 振替伝票ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDenpyoRequest'
+      responses:
+        '200':
+          description: 振替伝票が正常に更新された
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FurikaeDenpyo'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: 振替伝票削除
+      description: 指定IDの振替伝票を削除
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 振替伝票ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 振替伝票が正常に削除された
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/denpyo/{id}/pdf:
+    get:
+      summary: 振替伝票PDF生成
+      description: 指定IDの振替伝票をPDF形式でダウンロード
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 振替伝票ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: PDF文書
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: ダウンロード用ファイル名
+              schema:
+                type: string
+                example: 'attachment; filename="furikae-denpyo-20250904.pdf"'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # 勘定科目関連
+  /api/accounts:
+    get:
+      summary: 勘定科目一覧取得
+      description: 利用可能な勘定科目の一覧を取得
+      parameters:
+        - name: type
+          in: query
+          description: 科目区分でフィルタ
+          schema:
+            type: string
+            enum: [asset, liability, equity, revenue, expense, other]
+      responses:
+        '200':
+          description: 勘定科目一覧
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: カスタム勘定科目作成
+      description: ユーザー定義の勘定科目を作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+      responses:
+        '201':
+          description: 勘定科目が正常に作成された
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: 勘定科目コードが重複
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # 認証関連
+  /api/auth/verify:
+    post:
+      summary: パスワード検証
+      description: アプリケーションアクセス用パスワードを検証
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                  description: 入力されたパスワード
+              required:
+                - password
+      responses:
+        '200':
+          description: 認証成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "認証に成功しました"
+        '401':
+          description: 認証失敗
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "パスワードが正しくありません"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/auth/setup:
+    post:
+      summary: パスワード設定
+      description: 初回またはパスワード変更時の設定
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                  description: 設定するパスワード
+                  minLength: 4
+              required:
+                - password
+      responses:
+        '200':
+          description: パスワード設定完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "パスワードが設定されました"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/auth/status:
+    get:
+      summary: 認証状態確認
+      description: パスワードが設定されているかどうかを確認
+      responses:
+        '200':
+          description: 認証状態
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hasPassword:
+                    type: boolean
+                    description: パスワードが設定されているか
+                  isAuthenticated:
+                    type: boolean
+                    description: 現在のセッションが認証済みか
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    FurikaeDenpyo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 振替伝票ID
+        date:
+          type: string
+          format: date
+          description: 振替伝票日付
+        number:
+          type: string
+          nullable: true
+          description: 振替伝票番号（任意）
+          maxLength: 20
+        created_at:
+          type: string
+          format: date-time
+          description: 作成日時
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新日時
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShiwakeEntry'
+          description: 仕訳明細
+      required:
+        - id
+        - date
+        - created_at
+        - updated_at
+
+    ShiwakeEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 仕訳明細ID
+        denpyo_id:
+          type: string
+          format: uuid
+          description: 振替伝票ID
+        side:
+          type: string
+          enum: [debit, credit]
+          description: 借方(debit)または貸方(credit)
+        account_id:
+          type: string
+          format: uuid
+          description: 勘定科目ID
+        account_custom:
+          type: string
+          nullable: true
+          description: カスタム勘定科目名
+          maxLength: 50
+        amount:
+          type: integer
+          minimum: 1
+          maximum: 9999999999
+          description: 金額（円単位）
+        description:
+          type: string
+          description: 摘要
+          maxLength: 200
+        account:
+          $ref: '#/components/schemas/Account'
+          description: 勘定科目情報（JOIN結果）
+      required:
+        - id
+        - denpyo_id
+        - side
+        - account_id
+        - amount
+        - description
+
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 勘定科目ID
+        code:
+          type: string
+          description: 勘定科目コード
+          maxLength: 10
+        name:
+          type: string
+          description: 勘定科目名
+          maxLength: 50
+        type:
+          type: string
+          enum: [asset, liability, equity, revenue, expense, other]
+          description: 科目区分
+        is_system:
+          type: boolean
+          description: システム定義科目か
+        sort_order:
+          type: integer
+          description: 表示順序
+      required:
+        - id
+        - code
+        - name
+        - type
+        - is_system
+        - sort_order
+
+    CreateDenpyoRequest:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          description: 振替伝票日付
+        number:
+          type: string
+          nullable: true
+          description: 振替伝票番号（任意）
+          maxLength: 20
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateShiwakeEntryRequest'
+          minItems: 2
+          description: 仕訳明細（最低2件）
+      required:
+        - date
+        - entries
+
+    CreateShiwakeEntryRequest:
+      type: object
+      properties:
+        side:
+          type: string
+          enum: [debit, credit]
+          description: 借方(debit)または貸方(credit)
+        account_id:
+          type: string
+          format: uuid
+          description: 勘定科目ID
+        account_custom:
+          type: string
+          nullable: true
+          description: カスタム勘定科目名
+          maxLength: 50
+        amount:
+          type: integer
+          minimum: 1
+          maximum: 9999999999
+          description: 金額（円単位）
+        description:
+          type: string
+          description: 摘要
+          maxLength: 200
+      required:
+        - side
+        - account_id
+        - amount
+        - description
+
+    UpdateDenpyoRequest:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          description: 振替伝票日付
+        number:
+          type: string
+          nullable: true
+          description: 振替伝票番号（任意）
+          maxLength: 20
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateShiwakeEntryRequest'
+          minItems: 2
+          description: 仕訳明細（最低2件）
+
+    CreateAccountRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: 勘定科目コード
+          maxLength: 10
+          pattern: '^[A-Z0-9_]+$'
+        name:
+          type: string
+          description: 勘定科目名
+          maxLength: 50
+        type:
+          type: string
+          enum: [asset, liability, equity, revenue, expense, other]
+          description: 科目区分
+        sort_order:
+          type: integer
+          minimum: 1
+          description: 表示順序
+      required:
+        - code
+        - name
+        - type
+        - sort_order
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: 現在のページ番号
+        limit:
+          type: integer
+          description: 1ページあたりの件数
+        total:
+          type: integer
+          description: 総件数
+        pages:
+          type: integer
+          description: 総ページ数
+      required:
+        - page
+        - limit
+        - total
+        - pages
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: エラーメッセージ
+        code:
+          type: string
+          description: エラーコード
+        details:
+          type: object
+          description: エラー詳細情報
+      required:
+        - error
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+          description: エラーメッセージ
+        code:
+          type: string
+          example: "VALIDATION_ERROR"
+        details:
+          type: object
+          properties:
+            field_errors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+              description: フィールド別エラーメッセージ
+            balance_error:
+              type: object
+              properties:
+                debit_total:
+                  type: integer
+                credit_total:
+                  type: integer
+                difference:
+                  type: integer
+              description: 借方・貸方の残高エラー詳細
+      required:
+        - error
+        - code
+
+  responses:
+    BadRequest:
+      description: リクエストが不正
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: バリデーションエラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+
+    NotFound:
+      description: リソースが見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: サーバー内部エラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    SessionAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+      description: セッションベース認証
+
+security:
+  - SessionAuth: []
